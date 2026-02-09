@@ -1,6 +1,9 @@
 name: community_toolkit
 description: Community toolkit for Flutter apps. Includes MVVM primitives, command bindings, and messaging utilities.
 version: 0.1.0
+homepage: https://github.com/M0n7y5/community_toolkit_flutter
+repository: https://github.com/M0n7y5/community_toolkit_flutter
+issue_tracker: https://github.com/M0n7y5/community_toolkit_flutter/issues
 
 environment:
   sdk: ^3.8.0
