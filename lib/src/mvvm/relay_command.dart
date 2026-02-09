@@ -110,6 +110,22 @@ class RelayCommand<T> extends ChangeNotifier {
     return _canExecute(arg as T);
   }
 
+  /// Executes the command without any parameter.
+  ///
+  /// This is a convenience method for void/untyped commands where calling
+  /// `execute(null)` or `execute()` feels awkward. It is equivalent to
+  /// calling `execute()`.
+  ///
+  /// Example:
+  /// ```dart
+  /// // Instead of:
+  /// command.execute(null);
+  ///
+  /// // Use:
+  /// command.invoke();
+  /// ```
+  Future<void> invoke() => execute();
+
   Future<void> execute([T? arg]) async {
     if (!canExecute(arg)) {
       return;
