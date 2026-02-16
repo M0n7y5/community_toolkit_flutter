@@ -1,99 +1,99 @@
-import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+/// Counter example — demonstrates:
+///
+/// - [BaseViewModel] with [notifier], [command] factory, [event]
+/// - [AsyncStateNotifier] with sealed-class pattern matching
+/// - [ViewModelStateMixin] for automatic lifecycle management
+/// - [BindEvent] for one-shot error snackbars
+/// - [BindCommand] for reactive button enable/disable
+/// - [Bind] / [Bind2] for reactive UI
+library;
+
+import 'dart:async';
+
 import 'package:community_toolkit/mvvm.dart';
+import 'package:flutter/material.dart';
+
+// ---------------------------------------------------------------------------
+// ViewModel
+// ---------------------------------------------------------------------------
 
 class CounterViewModel extends BaseViewModel {
   CounterViewModel() {
-    // Initialize the reset command first so its state can be used by others.
-    resetCounterCommand = autoDispose(
-      RelayCommand.untyped(
-        executeAsync: _resetCounter,
-        listenables: [countNotifier],
-      ),
+    countNotifier = notifier<int>(0);
+    errorEvent = event<String>();
+
+    /// Simulates an async operation that loads a random fact about the
+    /// current count. Uses [AsyncStateNotifier] so the UI can pattern-match
+    /// on loading / data / error.
+    factState = asyncNotifier<String>();
+
+    incrementCommand = command.syncUntyped(
+      execute: _increment,
+      canExecute: () => !resetCommand.isExecuting && countNotifier.value < 10,
+      listenables: [countNotifier, resetCommand.executingNotifier],
     );
 
-    // Now, other commands can listen to the reset command's execution state.
-    incrementCommand = autoDispose(
-      RelayCommand.syncUntyped(
-        execute: _increment,
-        canExecute: _canIncrement,
-        listenables: [countNotifier, resetCounterCommand.executingNotifier],
-        errorNotifier: errorNotifier,
-      ),
+    decrementCommand = command.syncUntyped(
+      execute: () => countNotifier.value--,
+      canExecute: () => !resetCommand.isExecuting && countNotifier.value > 0,
+      listenables: [countNotifier, resetCommand.executingNotifier],
     );
 
-    decrementCommand = autoDispose(
-      RelayCommand.syncUntyped(
-        execute: () => countNotifier.value--,
-        canExecute: () =>
-            !resetCounterCommand.executingNotifier.value &&
-            countNotifier.value > 0,
-        listenables: [countNotifier, resetCounterCommand.executingNotifier],
-      ),
+    addValueCommand = command.sync<int>(
+      execute: (value) => countNotifier.value += value,
+      canExecute: (value) =>
+          !resetCommand.isExecuting &&
+          countNotifier.value + value >= 0 &&
+          countNotifier.value + value <= 10,
+      listenables: [countNotifier, resetCommand.executingNotifier],
     );
 
-    addValueCommand = autoDispose(
-      RelayCommand<int>.sync(
-        execute: (value) => countNotifier.value += value,
-        canExecute: (value) =>
-            !resetCounterCommand.executingNotifier.value &&
-            countNotifier.value + value >= 0 &&
-            countNotifier.value + value <= 10,
-        listenables: [countNotifier, resetCounterCommand.executingNotifier],
-      ),
-    );
-
-    errorCommand = autoDispose(
-      RelayCommand.syncUntyped(
-        execute: () => throw Exception('This is a test error!'),
-        canExecute: () => !resetCounterCommand.executingNotifier.value,
-        listenables: [resetCounterCommand.executingNotifier],
-        errorNotifier: errorNotifier,
-      ),
+    throwErrorCommand = command.syncUntyped(
+      execute: () {
+        errorEvent.fire('This is a test error!');
+      },
     );
   }
-  late final ValueNotifier<int> countNotifier = autoDispose(ValueNotifier(0));
-  late final ValueNotifier<String?> errorNotifier = autoDispose(
-    ValueNotifier(null),
-  );
 
+  late final ValueNotifier<int> countNotifier;
+  late final AsyncStateNotifier<String> factState;
+  late final ViewModelEvent<String> errorEvent;
+
+  // The reset command is declared first so other commands can reference
+  // its executingNotifier for canExecute guards.
+  late final RelayCommand<void> resetCommand = command.untyped(
+    executeAsync: _resetCounter,
+  );
   late final RelayCommand<void> incrementCommand;
   late final RelayCommand<void> decrementCommand;
   late final RelayCommand<int> addValueCommand;
-  late final RelayCommand<void> resetCounterCommand;
-  late final RelayCommand<void> errorCommand;
+  late final RelayCommand<void> throwErrorCommand;
 
-  // Method referenced by incrementCommand
   void _increment() {
-    // The canExecute check is handled by the RelayCommand,
-    // so we can directly execute the logic here.
     countNotifier.value++;
-    errorNotifier.value = null;
   }
 
-  // Method referenced by incrementCommand
-  bool _canIncrement() {
-    if (resetCounterCommand.executingNotifier.value) {
-      return false;
-    }
-    if (countNotifier.value >= 10) {
-      return false;
-    }
-    return true;
-  }
-
-  // Async method for reset command
   Future<void> _resetCounter() async {
-    errorNotifier.value = null; // Clear previous errors on reset
     await Future<void>.delayed(const Duration(seconds: 2));
     countNotifier.value = 0;
   }
 
   @override
   Future<void> init() async {
+    // Demonstrate AsyncStateNotifier.execute — loads a "fact" on startup.
+    await factState.execute(_loadFact);
+  }
+
+  Future<String> _loadFact() async {
     await Future<void>.delayed(const Duration(seconds: 1));
+    return 'The counter starts at ${countNotifier.value}. '
+        'You can count up to 10.';
   }
 }
+
+// ---------------------------------------------------------------------------
+// View
+// ---------------------------------------------------------------------------
 
 class CounterView extends StatefulWidget {
   const CounterView({super.key});
@@ -102,74 +102,90 @@ class CounterView extends StatefulWidget {
   State<CounterView> createState() => _CounterViewState();
 }
 
-class _CounterViewState extends State<CounterView> {
-  late final CounterViewModel vm;
+/// Uses [ViewModelStateMixin] — no manual initState/dispose needed.
+class _CounterViewState extends State<CounterView>
+    with ViewModelStateMixin<CounterView, CounterViewModel> {
+  @override
+  CounterViewModel createViewModel() => CounterViewModel();
 
   @override
-  void initState() {
-    super.initState();
-    vm = CounterViewModel();
-  }
-
-  @override
-  void dispose() {
-    vm.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => Center(
-    child: Bind(
-      notifier: vm.loadingNotifier,
-      builder: (isLoading) {
-        if (isLoading) {
-          return const CircularProgressIndicator();
-        }
-        return Column(
+  Widget build(BuildContext context) => BindEvent<String>(
+    event: vm.errorEvent,
+    handler: (ctx, message) {
+      ScaffoldMessenger.of(ctx).showSnackBar(
+        SnackBar(content: Text(message), backgroundColor: Colors.red),
+      );
+    },
+    child: Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Bind<String?>(
-              notifier: vm.errorNotifier,
-              builder: (error) => error != null
-                  ? Text(
-                      'Error: $error',
-                      style: const TextStyle(color: Colors.red),
-                    )
-                  : const SizedBox.shrink(),
+            // --- AsyncStateNotifier with pattern matching ---
+            Bind<AsyncState<String>>(
+              notifier: vm.factState,
+              builder: (state) => switch (state) {
+                AsyncLoading() => const Padding(
+                  padding: EdgeInsets.all(8),
+                  child: LinearProgressIndicator(),
+                ),
+                AsyncError(:final message) => Text(
+                  message,
+                  style: const TextStyle(color: Colors.red),
+                ),
+                AsyncData(:final data) => Text(
+                  data,
+                  style: Theme.of(context).textTheme.bodySmall,
+                  textAlign: TextAlign.center,
+                ),
+              },
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 24),
+
+            // --- Counter display ---
             Bind<int>(
               notifier: vm.countNotifier,
               builder: (count) =>
                   Text('Count: $count', style: const TextStyle(fontSize: 24)),
             ),
             const SizedBox(height: 16),
-            BindCommand<void>.untyped(
-              command: vm.incrementCommand,
-              child: const Text('Increment'),
-              builder: (onPressed, child, isExecuting) =>
-                  ElevatedButton(onPressed: onPressed, child: child),
+
+            // --- Increment / Decrement ---
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                BindCommand<void>.untyped(
+                  command: vm.decrementCommand,
+                  child: const Icon(Icons.remove),
+                  builder: (onPressed, child, _) =>
+                      IconButton(onPressed: onPressed, icon: child),
+                ),
+                const SizedBox(width: 16),
+                BindCommand<void>.untyped(
+                  command: vm.incrementCommand,
+                  child: const Icon(Icons.add),
+                  builder: (onPressed, child, _) =>
+                      IconButton(onPressed: onPressed, icon: child),
+                ),
+              ],
             ),
             const SizedBox(height: 8),
-            BindCommand<void>.untyped(
-              command: vm.decrementCommand,
-              child: const Text('Decrement'),
-              builder: (onPressed, child, isExecuting) =>
-                  ElevatedButton(onPressed: onPressed, child: child),
-            ),
-            const SizedBox(height: 8),
+
+            // --- Add 2 (typed command) ---
             BindCommand<int>(
               command: vm.addValueCommand,
               commandParameter: 2,
               child: const Text('Add 2'),
-              builder: (onPressed, child, isExecuting) =>
+              builder: (onPressed, child, _) =>
                   ElevatedButton(onPressed: onPressed, child: child),
             ),
             const SizedBox(height: 8),
-            // Example of an async command with the flexible builder
+
+            // --- Async reset with executing indicator ---
             BindCommand<void>.untyped(
-              command: vm.resetCounterCommand,
-              child: const Text('Reset'),
+              command: vm.resetCommand,
+              child: const Text('Reset (2s delay)'),
               builder: (onPressed, child, isExecuting) {
                 if (isExecuting) {
                   return const Padding(
@@ -185,10 +201,12 @@ class _CounterViewState extends State<CounterView> {
               },
             ),
             const SizedBox(height: 8),
+
+            // --- Error event demo ---
             BindCommand<void>.untyped(
-              command: vm.errorCommand,
-              child: const Text('Throw Error'),
-              builder: (onPressed, child, isExecuting) => ElevatedButton(
+              command: vm.throwErrorCommand,
+              child: const Text('Fire Error Event'),
+              builder: (onPressed, child, _) => ElevatedButton(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.red,
                   foregroundColor: Colors.white,
@@ -198,14 +216,8 @@ class _CounterViewState extends State<CounterView> {
               ),
             ),
           ],
-        );
-      },
+        ),
+      ),
     ),
   );
-
-  @override
-  void debugFillProperties(DiagnosticPropertiesBuilder properties) {
-    super.debugFillProperties(properties);
-    properties.add(DiagnosticsProperty<CounterViewModel>('vm', vm));
-  }
 }

@@ -1,18 +1,28 @@
-import 'dart:async';
-
 import 'package:flutter/foundation.dart';
 
 import 'relay_command.dart';
 import 'view_model_event.dart';
+import 'view_model_observer.dart';
 
 /// A base class for ViewModels in the MVVM pattern.
 ///
 /// It provides core functionality such as:
 /// - A loading state notifier.
-/// - An asynchronous initialization method.
+/// - An explicit, guarded [initialize] lifecycle method.
 /// - Automatic disposal of registered [ChangeNotifier]s to prevent memory leaks.
 /// - Convenience factory methods ([notifier], [command], etc.) that create
 ///   common primitives and auto-register them for disposal.
+///
+/// ### Lifecycle
+///
+/// Unlike earlier versions, `init()` is **not** called automatically from the
+/// constructor. Instead, [ViewModelStateMixin] calls [initialize] after
+/// `createViewModel()` and `onViewModelReady()` complete. This eliminates the
+/// timing race between the superclass constructor scheduling a microtask and
+/// the subclass constructor body initializing `late final` fields.
+///
+/// When creating a ViewModel outside of a widget (e.g. in tests), call
+/// [initialize] manually or use `ViewModelHarness`.
 ///
 /// ### Example
 ///
@@ -22,15 +32,30 @@ import 'view_model_event.dart';
 ///   late final incrementCommand = command.syncUntyped(
 ///     execute: () => count.value++,
 ///   );
+///
+///   @override
+///   Future<void> init() async {
+///     // Fetch initial data, etc.
+///   }
 /// }
 /// ```
 class BaseViewModel {
+  /// Global observers that receive lifecycle events from all ViewModels.
+  ///
+  /// Add observers at app startup to log, monitor, or debug ViewModel
+  /// activity. See [ViewModelObserver] for available hooks.
+  ///
+  /// ```dart
+  /// BaseViewModel.observers.add(DebugObserver());
+  /// ```
+  static final List<ViewModelObserver> observers = [];
+
   final List<ChangeNotifier> _disposables = [];
+  bool _initialized = false;
 
   /// A notifier that holds the current loading state of the ViewModel.
   ///
-  /// Typically used to show a loading indicator in the View while the
-  /// ViewModel is performing an asynchronous operation (e.g., in [init]).
+  /// Starts as `true` and transitions to `false` after [init] completes.
   /// This notifier is automatically disposed.
   late final ValueNotifier<bool> loadingNotifier = autoDispose(
     ValueNotifier(true),
@@ -48,9 +73,44 @@ class BaseViewModel {
   /// for disposal when the ViewModel is disposed.
   late final CommandFactory command = CommandFactory._(this);
 
-  BaseViewModel() {
-    unawaited(_initBaseClass());
+  /// Runs the async initialization lifecycle.
+  ///
+  /// Called automatically by [ViewModelStateMixin] after `createViewModel()`
+  /// and `onViewModelReady()`. When constructing a ViewModel outside of a
+  /// widget (e.g. in unit tests), call this explicitly:
+  ///
+  /// ```dart
+  /// final vm = MyViewModel();
+  /// await vm.initialize();
+  /// // ... test ...
+  /// vm.dispose();
+  /// ```
+  ///
+  /// This method is guarded — calling it more than once is a safe no-op.
+  Future<void> initialize() async {
+    if (_initialized) {
+      return;
+    }
+    _initialized = true;
+    _notifyObservers((o) => o.onViewModelCreated(this));
+    setLoading(true);
+    _notifyObservers((o) => o.onInitStarted(this));
+    final sw = Stopwatch()..start();
+    try {
+      await init();
+      sw.stop();
+      setLoading(false);
+      _notifyObservers((o) => o.onInitCompleted(this, sw.elapsed));
+    } on Object catch (error, stack) {
+      sw.stop();
+      setLoading(false);
+      _notifyObservers((o) => o.onInitFailed(this, error, stack));
+      rethrow;
+    }
   }
+
+  /// Whether [initialize] has been called (and potentially completed).
+  bool get isInitialized => _initialized;
 
   /// Registers a [ChangeNotifier] to be automatically disposed when the
   /// ViewModel is disposed.
@@ -114,17 +174,11 @@ class BaseViewModel {
     loadingNotifier.value = loading;
   }
 
-  /// Internal method to manage the initialization lifecycle.
-  Future<void> _initBaseClass() async {
-    setLoading(true);
-    await init();
-    setLoading(false);
-  }
-
-  /// An asynchronous method that is called once when the ViewModel is created.
+  /// An asynchronous method that is called once during [initialize].
   ///
   /// Override this to perform initial data loading or other setup tasks.
   /// The [loadingNotifier] will be true while this method is executing.
+  @protected
   Future<void> init() async {}
 
   /// Disposes the ViewModel and all registered [ChangeNotifier]s.
@@ -136,6 +190,13 @@ class BaseViewModel {
   void dispose() {
     for (final disposable in _disposables) {
       disposable.dispose();
+    }
+    _notifyObservers((o) => o.onViewModelDisposed(this));
+  }
+
+  void _notifyObservers(void Function(ViewModelObserver) action) {
+    for (final observer in observers) {
+      action(observer);
     }
   }
 }

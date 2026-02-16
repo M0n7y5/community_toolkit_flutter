@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 
 import 'base_view_model.dart';
@@ -8,30 +10,19 @@ import 'base_view_model.dart';
 /// and disposing it in [dispose] — the two most repeated lines in every
 /// screen that uses MVVM.
 ///
-/// ### Before
+/// ### Lifecycle Order
 ///
-/// ```dart
-/// class _DetailScreenState extends State<DetailScreen> {
-///   late final DetailViewModel _vm;
+/// 1. [createViewModel] — construct the ViewModel.
+/// 2. [onViewModelReady] — wire up listeners, fire initial commands, etc.
+/// 3. [BaseViewModel.initialize] — runs [BaseViewModel.init] as a microtask
+///    (loading notifier transitions from `true` to `false`).
+/// 4. Widget [dispose] — calls [BaseViewModel.dispose] automatically.
 ///
-///   @override
-///   void initState() {
-///     super.initState();
-///     _vm = DetailViewModel(contentId: widget.contentId);
-///   }
+/// Because `initialize()` is called **after** `onViewModelReady()`, all
+/// `late final` fields assigned in the ViewModel constructor body are
+/// guaranteed to exist by the time `init()` runs.
 ///
-///   @override
-///   void dispose() {
-///     _vm.dispose();
-///     super.dispose();
-///   }
-///
-///   @override
-///   Widget build(BuildContext context) { ... }
-/// }
-/// ```
-///
-/// ### After
+/// ### Example
 ///
 /// ```dart
 /// class _DetailScreenState extends State<DetailScreen>
@@ -39,6 +30,11 @@ import 'base_view_model.dart';
 ///   @override
 ///   DetailViewModel createViewModel() =>
 ///       DetailViewModel(contentId: widget.contentId);
+///
+///   @override
+///   void onViewModelReady(DetailViewModel vm) {
+///     // Wire up one-shot event listeners, etc.
+///   }
 ///
 ///   @override
 ///   Widget build(BuildContext context) { ... }
@@ -83,6 +79,7 @@ mixin ViewModelStateMixin<W extends StatefulWidget, VM extends BaseViewModel>
     super.initState();
     _viewModel = createViewModel();
     onViewModelReady(_viewModel);
+    unawaited(_viewModel.initialize());
   }
 
   @override

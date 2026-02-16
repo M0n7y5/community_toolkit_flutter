@@ -1,5 +1,5 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+
 import 'shop_view.dart';
 
 class ItemDetailView extends StatelessWidget {
@@ -37,10 +37,4 @@ class ItemDetailView extends StatelessWidget {
       ),
     ),
   );
-
-  @override
-  void debugFillProperties(DiagnosticPropertiesBuilder properties) {
-    super.debugFillProperties(properties);
-    properties.add(DiagnosticsProperty<ItemData>('itemData', itemData));
-  }
 }

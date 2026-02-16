@@ -27,12 +27,24 @@ typedef ValueSelector<T, S> = S Function(T value);
 /// );
 /// ```
 class BindSelector<T, S> extends StatefulWidget {
-  const BindSelector({
+  /// Creates a [BindSelector] without a static child.
+  BindSelector({
     required this.notifier,
     required this.selector,
-    required this.builder,
+    required ValueBuilder<S> builder,
     super.key,
-  });
+  }) : _builder = ((value, _) => builder(value)),
+       child = null;
+
+  /// Creates a [BindSelector] with a static [child] that is passed through
+  /// to the [builder] without being rebuilt.
+  const BindSelector.child({
+    required this.notifier,
+    required this.selector,
+    required ValueChildBuilder<S> builder,
+    required this.child,
+    super.key,
+  }) : _builder = builder;
 
   /// The source [ValueNotifier] to listen to.
   final ValueNotifier<T> notifier;
@@ -43,11 +55,12 @@ class BindSelector<T, S> extends StatefulWidget {
   /// function changes.
   final ValueSelector<T, S> selector;
 
-  /// A builder function that is called when the selected value changes.
-  ///
-  /// It receives the `value` returned by the [selector] and should
-  /// return a widget.
-  final ValueBuilder<S> builder;
+  /// The builder called when the selected value changes.
+  final ValueChildBuilder<S> _builder;
+
+  /// An optional static child widget that does not depend on the selected
+  /// value.
+  final Widget? child;
 
   @override
   State<BindSelector<T, S>> createState() => _BindSelectorState<T, S>();
@@ -58,7 +71,7 @@ class BindSelector<T, S> extends StatefulWidget {
     properties
       ..add(DiagnosticsProperty<ValueNotifier<T>>('notifier', notifier))
       ..add(ObjectFlagProperty<ValueSelector<T, S>>.has('selector', selector))
-      ..add(ObjectFlagProperty<ValueBuilder<S>>.has('builder', builder));
+      ..add(ObjectFlagProperty<ValueChildBuilder<S>>.has('builder', _builder));
   }
 }
 
@@ -102,6 +115,7 @@ class _BindSelectorState<T, S> extends State<BindSelector<T, S>> {
   @override
   Widget build(BuildContext context) => ValueListenableBuilder<S>(
     valueListenable: _proxyNotifier,
-    builder: (context, value, child) => widget.builder(value),
+    child: widget.child,
+    builder: (context, value, child) => widget._builder(value, child),
   );
 }

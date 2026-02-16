@@ -2,11 +2,6 @@ import 'package:community_toolkit/mvvm.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// Helper to let the unawaited _initBaseClass future complete before
-/// proceeding. Two microtask ticks are needed: one for the Future to start,
-/// one for the await inside _initBaseClass to finish.
-Future<void> pumpInit() => Future<void>.delayed(Duration.zero);
-
 class _TestViewModel extends BaseViewModel {
   bool initCalled = false;
   late final count = notifier(0);
@@ -39,27 +34,48 @@ class _LegacyViewModel extends BaseViewModel {
 
 void main() {
   group('BaseViewModel', () {
-    test('calls init() on construction', () async {
+    test('does not call init() automatically on construction', () {
       final vm = _TestViewModel();
-      await pumpInit();
-      expect(vm.initCalled, isTrue);
+      expect(vm.initCalled, isFalse);
+      expect(vm.isInitialized, isFalse);
       vm.dispose();
     });
 
-    test('loadingNotifier transitions during init', () async {
+    test('initialize() calls init()', () async {
+      final vm = _TestViewModel();
+      await vm.initialize();
+      expect(vm.initCalled, isTrue);
+      expect(vm.isInitialized, isTrue);
+      vm.dispose();
+    });
+
+    test('initialize() is idempotent', () async {
+      var initCount = 0;
+      final vm = _CountingInitViewModel(() => initCount++);
+      await vm.initialize();
+      await vm.initialize();
+      await vm.initialize();
+      expect(initCount, 1);
+      vm.dispose();
+    });
+
+    test('loadingNotifier transitions during initialize', () async {
       final vm = _SlowInitViewModel();
-      // Immediately after construction, loading should be true.
+      // Before initialize, loading should be true (initial value).
       expect(vm.loadingNotifier.value, isTrue);
 
-      // Wait for init to complete.
-      await Future<void>.delayed(const Duration(milliseconds: 100));
+      final future = vm.initialize();
+      // During init, loading should still be true.
+      expect(vm.loadingNotifier.value, isTrue);
+
+      await future;
       expect(vm.loadingNotifier.value, isFalse);
       vm.dispose();
     });
 
     test('setLoading updates loadingNotifier', () async {
       final vm = _TestViewModel();
-      await pumpInit();
+      await vm.initialize();
       vm.setLoading(true);
       expect(vm.loadingNotifier.value, isTrue);
       vm.setLoading(false);
@@ -76,9 +92,7 @@ void main() {
       vm.error;
       vm.done;
 
-      // Wait for init to complete so the unawaited future doesn't fire
-      // after dispose.
-      await pumpInit();
+      await vm.initialize();
 
       vm.dispose();
 
@@ -93,14 +107,14 @@ void main() {
       final vm = _TestViewModel();
       expect(vm.count.value, 0);
       expect(vm.name.value, '');
-      await pumpInit();
+      await vm.initialize();
       vm.dispose();
     });
 
     test('created notifier is auto-disposed', () async {
       final vm = _TestViewModel();
       vm.count; // Force lazy init.
-      await pumpInit();
+      await vm.initialize();
       vm.dispose();
       expect(() => vm.count.addListener(() {}), throwsFlutterError);
     });
@@ -110,7 +124,7 @@ void main() {
     test('creates a ViewModelEvent that is auto-disposed', () async {
       final vm = _TestViewModel();
       vm.error; // Force lazy init.
-      await pumpInit();
+      await vm.initialize();
       vm.dispose();
       expect(() => vm.error.addListener(() {}), throwsFlutterError);
     });
@@ -120,7 +134,7 @@ void main() {
     test('creates a SignalEvent that is auto-disposed', () async {
       final vm = _TestViewModel();
       vm.done; // Force lazy init.
-      await pumpInit();
+      await vm.initialize();
       vm.dispose();
       expect(() => vm.done.addListener(() {}), throwsFlutterError);
     });
@@ -130,7 +144,7 @@ void main() {
     test('command.syncUntyped creates an auto-disposed command', () async {
       final vm = _TestViewModel();
       vm.incrementCommand; // Force lazy init.
-      await pumpInit();
+      await vm.initialize();
       await vm.incrementCommand.invoke();
       expect(vm.count.value, 1);
       vm.dispose();
@@ -140,7 +154,7 @@ void main() {
     test('command.untyped creates an async auto-disposed command', () async {
       var called = false;
       final vm = _TestViewModel();
-      await pumpInit();
+      await vm.initialize();
       final cmd = vm.command.untyped(executeAsync: () async => called = true);
       await cmd.invoke();
       expect(called, isTrue);
@@ -150,7 +164,7 @@ void main() {
     test('command<T> creates a typed auto-disposed command', () async {
       String? received;
       final vm = _TestViewModel();
-      await pumpInit();
+      await vm.initialize();
       final cmd = vm.command<String>(
         executeAsync: (arg) async => received = arg,
       );
@@ -164,7 +178,7 @@ void main() {
       () async {
         int? received;
         final vm = _TestViewModel();
-        await pumpInit();
+        await vm.initialize();
         final cmd = vm.command.sync<int>(execute: (val) => received = val);
         await cmd.execute(42);
         expect(received, 42);
@@ -176,11 +190,22 @@ void main() {
   group('Backward compatibility', () {
     test('autoDispose(ValueNotifier(...)) still works', () async {
       final vm = _LegacyViewModel();
-      await pumpInit();
+      await vm.initialize();
       expect(vm.count.value, 0);
       await vm.incrementCommand.invoke();
       expect(vm.count.value, 1);
       vm.dispose();
     });
   });
+}
+
+/// Helper VM that counts how many times init is called.
+class _CountingInitViewModel extends BaseViewModel {
+  final void Function() _onInit;
+  _CountingInitViewModel(this._onInit);
+
+  @override
+  Future<void> init() async {
+    _onInit();
+  }
 }

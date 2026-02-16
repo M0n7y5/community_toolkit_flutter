@@ -4,10 +4,11 @@ import 'package:flutter_test/flutter_test.dart';
 
 class _CounterViewModel extends BaseViewModel {
   late final count = notifier(0);
+  bool initRan = false;
 
   @override
   Future<void> init() async {
-    // No-op for test.
+    initRan = true;
   }
 }
 
@@ -48,6 +49,16 @@ void main() {
       await tester.pumpWidget(const MaterialApp(home: _TestScreen()));
       final state = tester.state<_TestScreenState>(find.byType(_TestScreen));
       expect(state.onReadyCalled, isTrue);
+    });
+
+    testWidgets('calls initialize after onViewModelReady', (tester) async {
+      await tester.pumpWidget(const MaterialApp(home: _TestScreen()));
+      // Let the unawaited initialize() microtask complete.
+      await tester.pump();
+      final state = tester.state<_TestScreenState>(find.byType(_TestScreen));
+      expect(state.vm.initRan, isTrue);
+      expect(state.vm.isInitialized, isTrue);
+      expect(state.vm.loadingNotifier.value, isFalse);
     });
 
     testWidgets('vm getter provides access to ViewModel', (tester) async {
