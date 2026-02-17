@@ -6,12 +6,15 @@ import 'bind.dart'; // For reusing ValueBuilder
 /// source object of type [T].
 typedef ValueSelector<T, S> = S Function(T value);
 
-/// A widget that listens to a [ValueNotifier] and rebuilds only when a
+/// A widget that listens to a [ValueListenable] and rebuilds only when a
 /// selected part of its value changes.
 ///
 /// This is a performance optimization widget that helps to prevent unnecessary
 /// rebuilds of a widget tree when only a small part of a complex
 /// object has changed.
+///
+/// Accepts any [ValueListenable], including [ValueNotifier],
+/// [ComputedNotifier], and custom implementations.
 ///
 /// ---
 ///
@@ -46,8 +49,8 @@ class BindSelector<T, S> extends StatefulWidget {
     super.key,
   }) : _builder = builder;
 
-  /// The source [ValueNotifier] to listen to.
-  final ValueNotifier<T> notifier;
+  /// The source [ValueListenable] to listen to.
+  final ValueListenable<T> notifier;
 
   /// A function that extracts the value to watch from the notifier's value.
   ///
@@ -69,7 +72,7 @@ class BindSelector<T, S> extends StatefulWidget {
   void debugFillProperties(DiagnosticPropertiesBuilder properties) {
     super.debugFillProperties(properties);
     properties
-      ..add(DiagnosticsProperty<ValueNotifier<T>>('notifier', notifier))
+      ..add(DiagnosticsProperty<ValueListenable<T>>('notifier', notifier))
       ..add(ObjectFlagProperty<ValueSelector<T, S>>.has('selector', selector))
       ..add(ObjectFlagProperty<ValueChildBuilder<S>>.has('builder', _builder));
   }

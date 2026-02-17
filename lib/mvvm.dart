@@ -1,3 +1,4 @@
+export 'src/mvvm/async_computed_notifier.dart';
 export 'src/mvvm/async_state.dart';
 export 'src/mvvm/base_view_model.dart';
 export 'src/mvvm/bind.dart';

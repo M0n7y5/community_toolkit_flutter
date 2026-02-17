@@ -39,6 +39,7 @@ class ServiceLocator {
 
   final Map<Type, Object> _singletons = {};
   final Map<Type, Object Function()> _factories = {};
+  final Map<Type, void Function(Object)> _disposers = {};
 
   /// Resolves a registered instance of type [T].
   ///
@@ -64,9 +65,12 @@ class ServiceLocator {
 
   /// Registers a singleton [instance] of type [T].
   ///
+  /// If [onDispose] is provided, it will be called with the instance when
+  /// [reset] or [unregister] is called.
+  ///
   /// Throws [StateError] if [T] is already registered. Use
   /// [registerIfAbsent] for idempotent registration.
-  void register<T extends Object>(T instance) {
+  void register<T extends Object>(T instance, {void Function(T)? onDispose}) {
     if (_singletons.containsKey(T) || _factories.containsKey(T)) {
       throw StateError(
         '$T is already registered. '
@@ -74,17 +78,29 @@ class ServiceLocator {
       );
     }
     _singletons[T] = instance;
+    if (onDispose != null) {
+      _disposers[T] = (obj) => onDispose(obj as T);
+    }
   }
 
   /// Registers [instance] only if [T] is not already registered.
   ///
+  /// If [onDispose] is provided, it will be called with the instance when
+  /// [reset] or [unregister] is called.
+  ///
   /// Returns `true` if the registration was performed, `false` if [T]
   /// was already present.
-  bool registerIfAbsent<T extends Object>(T instance) {
+  bool registerIfAbsent<T extends Object>(
+    T instance, {
+    void Function(T)? onDispose,
+  }) {
     if (_singletons.containsKey(T) || _factories.containsKey(T)) {
       return false;
     }
     _singletons[T] = instance;
+    if (onDispose != null) {
+      _disposers[T] = (obj) => onDispose(obj as T);
+    }
     return true;
   }
 
@@ -93,8 +109,14 @@ class ServiceLocator {
   /// The [factory] is called exactly once — on the first [call] for [T].
   /// Subsequent calls return the cached instance.
   ///
+  /// If [onDispose] is provided, it will be called with the instance when
+  /// [reset] or [unregister] is called (only if the instance was created).
+  ///
   /// Throws [StateError] if [T] is already registered.
-  void registerLazy<T extends Object>(T Function() factory) {
+  void registerLazy<T extends Object>(
+    T Function() factory, {
+    void Function(T)? onDispose,
+  }) {
     if (_singletons.containsKey(T) || _factories.containsKey(T)) {
       throw StateError(
         '$T is already registered. '
@@ -102,6 +124,9 @@ class ServiceLocator {
       );
     }
     _factories[T] = factory;
+    if (onDispose != null) {
+      _disposers[T] = (obj) => onDispose(obj as T);
+    }
   }
 
   /// Returns `true` if [T] has been registered (eager or lazy).
@@ -110,18 +135,33 @@ class ServiceLocator {
 
   /// Removes the registration for [T].
   ///
-  /// Does nothing if [T] is not registered.
+  /// Calls the `onDispose` callback if one was provided during registration
+  /// and the instance has been created. Does nothing if [T] is not
+  /// registered.
   void unregister<T extends Object>() {
-    _singletons.remove(T);
+    final instance = _singletons.remove(T);
     _factories.remove(T);
+    final disposer = _disposers.remove(T);
+    if (disposer != null && instance != null) {
+      disposer(instance);
+    }
   }
 
   /// Removes all registrations.
   ///
+  /// Calls all `onDispose` callbacks for singletons that have been created.
+  ///
   /// Returns a [Future] for drop-in compatibility with `get_it`'s async
   /// `reset()` in test teardowns.
   Future<void> reset() async {
+    for (final entry in _singletons.entries) {
+      final disposer = _disposers[entry.key];
+      if (disposer != null) {
+        disposer(entry.value);
+      }
+    }
     _singletons.clear();
     _factories.clear();
+    _disposers.clear();
   }
 }

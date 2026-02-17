@@ -2,8 +2,12 @@ import 'package:flutter/foundation.dart';
 
 import 'base_view_model.dart';
 
-/// A [ValueNotifier] that always notifies listeners on [value] set,
+/// A [ValueListenable] that always notifies listeners on [value] set,
 /// even when the new value is equal to the old value.
+///
+/// Unlike [ValueNotifier], which short-circuits when the new value is
+/// `==` to the old value, this class always stores the new value and
+/// fires notifications.
 ///
 /// Use this when domain objects have coarse equality (e.g., comparing
 /// only an ID) but other fields may have changed and listeners need
@@ -16,19 +20,21 @@ import 'base_view_model.dart';
 /// // This always notifies, even if entity.id == old.id:
 /// entityNotifier.value = enrichedEntity;
 /// ```
-class ForceValueNotifier<T> extends ValueNotifier<T> {
-  /// Creates a [ForceValueNotifier] with the given [value].
-  ForceValueNotifier(super.value);
+class ForceValueNotifier<T> extends ChangeNotifier
+    implements ValueListenable<T> {
+  T _value;
+
+  /// Creates a [ForceValueNotifier] with the given initial [value].
+  ForceValueNotifier(this._value);
 
   @override
+  T get value => _value;
+
+  /// Sets the value and always notifies listeners, even when
+  /// [newValue] is equal to the current value.
   set value(T newValue) {
-    if (newValue == super.value) {
-      // Force notification even when equal.
-      super.value = newValue;
-      notifyListeners();
-    } else {
-      super.value = newValue;
-    }
+    _value = newValue;
+    notifyListeners();
   }
 }
 

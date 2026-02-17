@@ -54,14 +54,14 @@ class BindCommand<T> extends StatelessWidget {
   /// Creates a binding for a [RelayCommand] that does not take a parameter.
   ///
   /// See the default constructor for parameter details.
-  factory BindCommand.untyped({
+  static BindCommand<void> untyped({
     required RelayCommand<void> command,
     required Widget child,
     required BindCommandBuilder builder,
     Key? key,
-  }) => BindCommand._(
+  }) => BindCommand<void>._(
     key: key,
-    command: command as RelayCommand<T>,
+    command: command,
     builder: builder,
     child: child,
   );

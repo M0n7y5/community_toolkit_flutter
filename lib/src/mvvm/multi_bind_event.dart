@@ -128,11 +128,17 @@ class _MultiBindEventState extends State<MultiBindEvent> {
     }
   }
 
-  void _attachTyped<T>(EventHandler<T> entry) {
+  void _attachTyped(EventHandler<dynamic> entry) {
+    // The handler list erases EventHandler<String> to EventHandler<dynamic>,
+    // but Dart function types are contravariant in parameters: accessing
+    // .handler as (BuildContext, dynamic) → void when the runtime type is
+    // (BuildContext, String) → void would throw a TypeError. Casting entry
+    // to dynamic bypasses the static type check entirely.
+    final dynamic e = entry;
     void listener() {
-      final value = entry.event.value;
+      final dynamic value = e.event.value;
       if (value != null) {
-        entry.handler(context, value);
+        e.handler(context, value);
       }
     }
 

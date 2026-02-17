@@ -102,8 +102,7 @@ class EventRecorder<T> {
 /// recorder.dispose();
 /// ```
 class SignalRecorder {
-  /// The number of times the signal has fired.
-  int count = 0;
+  int _count = 0;
 
   final SignalEvent _event;
 
@@ -115,15 +114,18 @@ class SignalRecorder {
 
   void _record() {
     if (_event.fired) {
-      count++;
+      _count++;
     }
   }
 
+  /// The number of times the signal has fired.
+  int get count => _count;
+
   /// Whether the signal has fired at least once.
-  bool get fired => count > 0;
+  bool get fired => _count > 0;
 
   /// Resets the fire count to zero.
-  void clear() => count = 0;
+  void clear() => _count = 0;
 
   /// Stops recording and removes the listener.
   void dispose() {

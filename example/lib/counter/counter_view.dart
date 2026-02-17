@@ -155,14 +155,14 @@ class _CounterViewState extends State<CounterView>
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                BindCommand<void>.untyped(
+                BindCommand.untyped(
                   command: vm.decrementCommand,
                   child: const Icon(Icons.remove),
                   builder: (onPressed, child, _) =>
                       IconButton(onPressed: onPressed, icon: child),
                 ),
                 const SizedBox(width: 16),
-                BindCommand<void>.untyped(
+                BindCommand.untyped(
                   command: vm.incrementCommand,
                   child: const Icon(Icons.add),
                   builder: (onPressed, child, _) =>
@@ -183,7 +183,7 @@ class _CounterViewState extends State<CounterView>
             const SizedBox(height: 8),
 
             // --- Async reset with executing indicator ---
-            BindCommand<void>.untyped(
+            BindCommand.untyped(
               command: vm.resetCommand,
               child: const Text('Reset (2s delay)'),
               builder: (onPressed, child, isExecuting) {
@@ -203,7 +203,7 @@ class _CounterViewState extends State<CounterView>
             const SizedBox(height: 8),
 
             // --- Error event demo ---
-            BindCommand<void>.untyped(
+            BindCommand.untyped(
               command: vm.throwErrorCommand,
               child: const Text('Fire Error Event'),
               builder: (onPressed, child, _) => ElevatedButton(

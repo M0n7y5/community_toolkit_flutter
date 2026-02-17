@@ -101,7 +101,7 @@ sealed class AsyncState<T> {
   /// Like [when], but with optional callbacks that fall back to [orElse].
   R maybeWhen<R>({
     R Function()? loading,
-    R Function(T data)? onData,
+    R Function(T data)? data,
     R Function(String message)? error,
     required R Function() orElse,
   }) {
@@ -110,7 +110,7 @@ sealed class AsyncState<T> {
       case AsyncLoading<T>():
         return loading?.call() ?? orElse();
       case AsyncData<T>():
-        return onData?.call(self.data) ?? orElse();
+        return data?.call(self.data) ?? orElse();
       case AsyncError<T>():
         return error?.call(self.message) ?? orElse();
     }

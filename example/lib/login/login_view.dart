@@ -181,7 +181,7 @@ class _LoginViewState extends State<LoginView>
                 const SizedBox(height: 24),
 
                 // --- Login button (disabled until valid) ---
-                BindCommand<void>.untyped(
+                BindCommand.untyped(
                   command: vm.loginCommand,
                   child: const Text('Login'),
                   builder: (onPressed, child, isExecuting) {

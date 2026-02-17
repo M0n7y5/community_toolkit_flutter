@@ -100,6 +100,16 @@ class RelayCommand<T> extends ChangeNotifier {
 
   bool get isExecuting => executingNotifier.value;
 
+  /// Whether the command can currently execute.
+  ///
+  /// Returns `false` while the command is already executing.
+  ///
+  /// For **typed** commands (`RelayCommand<int>`, etc.) the [arg] must be
+  /// provided when a `canExecute` guard was supplied at construction — the
+  /// guard needs the typed value to evaluate. Calling this without an
+  /// argument on a typed command that has a guard will throw a [TypeError].
+  ///
+  /// For **untyped** commands (`RelayCommand<void>`) the argument is ignored.
   bool canExecute([T? arg]) {
     if (executingNotifier.value) {
       return false;

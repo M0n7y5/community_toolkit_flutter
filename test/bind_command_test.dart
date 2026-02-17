@@ -9,7 +9,7 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
-          home: BindCommand<void>.untyped(
+          home: BindCommand.untyped(
             command: cmd,
             child: const Text('Go'),
             builder: (onPressed, child, isExecuting) =>
@@ -31,7 +31,7 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
-          home: BindCommand<void>.untyped(
+          home: BindCommand.untyped(
             command: cmd,
             child: const Text('Go'),
             builder: (onPressed, child, isExecuting) =>
@@ -55,7 +55,7 @@ void main() {
       bool? capturedIsExecuting;
       await tester.pumpWidget(
         MaterialApp(
-          home: BindCommand<void>.untyped(
+          home: BindCommand.untyped(
             command: cmd,
             child: const Text('Go'),
             builder: (onPressed, child, isExecuting) {

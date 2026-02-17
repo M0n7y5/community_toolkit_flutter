@@ -62,7 +62,7 @@ void main() {
     test('maybeWhen() falls back to orElse', () {
       const AsyncState<int> loading = AsyncLoading();
       final result = loading.maybeWhen(
-        onData: (v) => 'data:$v',
+        data: (v) => 'data:$v',
         orElse: () => 'fallback',
       );
       expect(result, 'fallback');

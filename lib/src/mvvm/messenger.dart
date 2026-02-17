@@ -60,9 +60,13 @@ class Messenger {
     return token;
   }
 
-  /// Sends a [message] to all registered listeners of that message type.
+  /// Sends a [message] to all registered listeners of type [T].
+  ///
+  /// The static type parameter [T] is used to look up subscriptions,
+  /// matching the behaviour of [register]. This means `send<Animal>(Dog())`
+  /// will deliver to listeners registered with `register<Animal>(...)`.
   void send<T>(T message) {
-    final type = message.runtimeType;
+    final type = T;
     if (_subscriptions.containsKey(type)) {
       final recipients = _subscriptions[type]!;
       // Create a copy of the maps to iterate over, in case a callback
